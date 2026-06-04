@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1.0">
+    <title>Premium Broadcast Scoreboard V32</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&family=Poppins:wght@300;600;700&display=swap"
+        rel="stylesheet">
+    <!-- [Bug 40] Fixed: Poppins font added -->
+    <link rel="stylesheet" href="score.css">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- Chart.js for advanced charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js animation plugin (optional, for smoother animations) -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-animation@2.0.0/dist/chartjs-plugin-animation.min.js"></script>
+
+    <style>
+        /* [Bug 35] Fixed: Auto-scale for non-1080p displays */
+        body {
+            transform-origin: top left;
+        }
+
+        /* [Bug 45] Fixed: Upcoming photo wrap - moved from inline to CSS */
+        .upcoming-photo-wrap {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid var(--gold);
+            display: none;
+            background: #111;
+            flex-shrink: 0;
+        }
+
+        .upcoming-photo-wrap.has-photo {
+            display: block;
+        }
+
+        .upcoming-photo-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* [Bug 46] Fixed: Profile img hidden by default - no empty src */
+        #ppPhoto {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .ppc-photo.has-image #ppPhoto {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- CONNECTION POPUP -->
+    <div class="conn-popup" id="connPopup">✅ CONNECTED TO SCOREBOARD</div>
+
+    <!-- MATCH SUMMARY - TRANSPARENT GLASS -->
+    <div class="summary-overlay" id="summaryOverlay">
+        <div class="summary-container">
+            <div class="sum-header">
+                <span class="sum-title" id="sumTitle">INNINGS SUMMARY</span>
+            </div>
+
+            <!-- INNINGS SUMMARY VIEW -->
+            <div class="sum-innings-view" id="sumInningsView">
+                <div class="sum-team-score">
+                    <span class="sum-team-name" id="sumTeamName">TEAM NAME</span>
+                    <div class="sum-score-line">
+                        <span class="sum-runs" id="sumRuns">0/0</span>
+                        <span class="sum-overs" id="sumOvers">(0.0 Overs)</span>
+                    </div>
+                </div>
+                <div class="sum-section">
+                    <div class="sum-section-title">TOP BATSMEN</div>
+                    <div class="sum-table" id="sumBatsmen"></div>
+                </div>
+                <div class="sum-section">
+                    <div class="sum-section-title">TOP BOWLERS</div>
+                    <div class="sum-table" id="sumBowlers"></div>
+                </div>
+                <div class="sum-target">
+                    <span class="sum-target-label">TARGET</span>
+                    <span class="sum-target-value" id="sumTarget">0</span>
+                </div>
+            </div>
+
+            <!-- MATCH SUMMARY VIEW -->
+            <div class="sum-match-view" id="sumMatchView" style="display: none;">
+                <div class="sum-match-teams">
+                    <!-- Team 1 (1st Innings) -->
+                    <div class="sum-match-team innings-1">
+                        <div class="sum-match-team-badge" id="sumTeam1Badge">T1</div>
+                        <div class="sum-match-team-info">
+                            <span class="sum-match-team-name" id="sumTeam1Name">Team 1</span>
+                            <span class="sum-match-team-label">1ST INNINGS</span>
+                        </div>
+                        <div class="sum-match-team-score">
+                            <span class="sum-match-score" id="sumTeam1Score">0/0</span>
+                            <span class="sum-match-overs" id="sumTeam1Overs">(0.0)</span>
+                        </div>
+                    </div>
+
+                    <div class="sum-match-vs">VS</div>
+
+                    <!-- Team 2 (2nd Innings) -->
+                    <div class="sum-match-team innings-2">
+                        <div class="sum-match-team-badge" id="sumTeam2Badge">T2</div>
+                        <div class="sum-match-team-info">
+                            <span class="sum-match-team-name" id="sumTeam2Name">Team 2</span>
+                            <span class="sum-match-team-label">2ND INNINGS</span>
+                        </div>
+                        <div class="sum-match-team-score">
+                            <span class="sum-match-score" id="sumTeam2Score">0/0</span>
+                            <span class="sum-match-overs" id="sumTeam2Overs">(0.0)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result Banner -->
+                <div class="sum-result-banner">
+                    <span class="sum-result-text" id="sumResultText">MATCH RESULT</span>
+                </div>
+
+                <!-- Top Performers -->
+                <div class="sum-performers">
+                    <div class="sum-performer-section">
+                        <div class="sum-performer-title">🏏 TOP BATSMEN</div>
+                        <div class="sum-performer-list" id="sumMatchBatsmen"></div>
+                    </div>
+                    <div class="sum-performer-divider"></div>
+                    <div class="sum-performer-section">
+                        <div class="sum-performer-title">🎯 TOP BOWLERS</div>
+                        <div class="sum-performer-list" id="sumMatchBowlers"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCOREBOARD WRAPPER - FIXED BOTTOM CENTER -->
+    <div class="scoreboard-wrapper" id="scoreboardWrapper">
+
+        <!-- MAIN SCOREBOARD CONTAINER -->
+        <div class="scoreboard-container" id="scoreboard">
+
+            <!-- Left Logo -->
+            <div class="logo-box left" id="logoLeft">
+                <div class="logo-inner bg-texture" id="logo1Box">
+                    <div class="crest-placeholder" id="batFlagLogo">STC</div>
+                </div>
+            </div>
+
+            <!-- Batting Panel -->
+            <div class="side-panel bat-panel bg-texture" id="batPanel">
+                <div class="batter-row" id="rowB1">
+                    <span class="pointer" id="p1">▶</span>
+                    <span class="b-name" id="b1Name">--</span>
+                    <div class="b-score">
+                        <span id="b1Runs">0</span>
+                        <span id="b1Balls">0</span>
+                    </div>
+                </div>
+                <div class="batter-row" id="rowB2">
+                    <span class="pointer" id="p2">▶</span>
+                    <span class="b-name" id="b2Name">--</span>
+                    <div class="b-score">
+                        <span id="b2Runs">0</span>
+                        <span id="b2Balls">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Box -->
+            <div class="center-box" id="centerBox">
+                <div class="center-inner bg-texture">
+
+                    <!-- Normal Score Content -->
+                    <div class="normal-content" id="normalContent">
+                        <div class="teams-header" id="teamsHeader">STC VS GSC</div>
+                        <div class="center-main">
+                            <div class="play-school" id="playSchool">STC</div>
+                            <div class="score-pill">
+                                <span id="mainRuns">0</span> - <span id="mainWkts">0</span>
+                            </div>
+                            <div class="overs-text">
+                                <span id="oversText">0.0</span> OVERS
+                                <!-- [Bug 49] Fixed: Limited pulse animation -->
+                                <span id="fhOverlay" style="display:none;">💧 FREE HIT</span>
+                            </div>
+                        </div>
+                        <div class="bottom-tag" id="statusText">LIVE MATCH</div>
+                    </div>
+
+                    <!-- Hype Overlay (FOUR/SIX/WICKET) -->
+                    <div class="hype-overlay" id="hypeOverlay">
+                        <span class="hype-text" id="hypeText">FOUR</span>
+                    </div>
+
+                    <!-- NEW BATSMAN Overlay -->
+                    <div class="new-batter-overlay" id="newBatterOverlay">
+                        <span>NEW BATSMAN</span>
+                    </div>
+
+                    <!-- Special Text Overlay -->
+                    <div class="special-text-overlay plain-text" id="specialOverlay">
+                        <div class="special-overlay-content" id="specialOverlayContent">--</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Player Profile Card (Inside Scoreboard - Right Side) -->
+            <div class="player-profile-card" id="playerProfile">
+                <div class="ppc-accent"></div>
+                <div class="ppc-content">
+                    <div class="ppc-photo" id="ppPhotoWrap">
+                        <!-- [Bug 46] Fixed: No empty src attribute -->
+                        <img alt="Player" id="ppPhoto">
+                        <div class="ppc-photo-fallback" id="ppPhotoFallback">PL</div>
+                    </div>
+                    <div class="ppc-info">
+                        <span class="ppc-role" id="ppRole">BATSMAN</span>
+                        <span class="ppc-name" id="ppName">PLAYER NAME</span>
+                        <div class="ppc-meta">
+                            <span id="ppSchool">School Name</span>
+                            <span class="ppc-dot">•</span>
+                            <span id="ppAge">Age 20</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bowling Panel -->
+            <div class="side-panel bowl-panel bg-texture" id="bowlPanel">
+
+                <!-- Bowler View -->
+                <div class="view-wrapper active" id="view-bowler">
+                    <div class="bowler-row">
+                        <span class="bowler-name" id="bowlName">--</span>
+                        <div class="bowler-stats">
+                            <span id="bowlFigs">0-0 0.0</span>
+                        </div>
+                    </div>
+                    <div class="balls-row" id="ballsRowContainer"></div>
+                </div>
+
+                <!-- Target View -->
+                <div class="view-wrapper" id="view-target">
+                    <div class="view-title" id="tarTextMain">
+                        STC NEEDS <span class="g-text">0</span> RUNS
+                    </div>
+                    <div class="view-sub" id="tarTextSub">
+                        RRR: <span class="g-text">0.00</span> • CRR: <span class="g-text">0.00</span>
+                    </div>
+                </div>
+
+                <!-- Partnership View -->
+                <div class="view-wrapper" id="view-partner">
+                    <div class="view-title">CURRENT PARTNERSHIP</div>
+                    <div class="view-sub">
+                        <span class="g-text" id="partRuns" style="font-size:22px;">0</span>
+                        RUNS (<span id="partBalls">0</span> BALLS)
+                    </div>
+                </div>
+
+                <!-- Win Predictor View -->
+                <div class="view-wrapper" id="view-predictor">
+                    <div class="view-title">WIN PREDICTOR</div>
+                    <div class="pred-header">
+                        <span id="predT1Name">STC <span class="g-text" id="predT1Val">50%</span></span>
+                        <span id="predT2Name"><span style="color:#ccc;" id="predT2Val">50%</span> GSC</span>
+                    </div>
+                    <div class="pred-bar">
+                        <div class="pred-left" id="predBarFill" style="width: 50%;"></div>
+                        <div class="pred-right"></div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Batter View -->
+                <div class="view-wrapper" id="view-upcoming">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <!-- [Bug 45] Fixed: Using CSS class instead of inline styles -->
+                        <div class="upcoming-photo-wrap" id="upcomingPhotoWrap">
+                            <img id="upcomingBatterPhoto" class="upcoming-photo-img" alt="">
+                        </div>
+                        <div>
+                            <div class="view-title">UPCOMING BATTER</div>
+                            <div class="view-sub">
+                                <span class="g-text" id="upcomingBatterName" style="font-size:22px;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chase Progress View -->
+                <div class="view-wrapper" id="view-chase">
+                    <div class="view-title" id="chaseViewTitle">TARGET PROGRESS</div>
+                    <div class="chase-view-bar">
+                        <div class="chase-view-fill" id="chaseViewFill"></div>
+                    </div>
+                    <div class="chase-view-rates">
+                        <span>CRR <b id="chaseCrr" class="chase-rate-even">0.00</b></span>
+                        <span id="chaseScoreLabel" style="font-weight:900; color:var(--gold);">0 / 0</span>
+                        <span>RRR <b id="chaseRrr" class="chase-rate-even">0.00</b></span>
+                    </div>
+                </div>
+
+                <!-- Test Match Lead/Trail View -->
+                <div class="view-wrapper" id="view-lead">
+                    <div class="view-title" id="leadViewTitle">LEAD</div>
+                    <div class="view-sub">
+                        <span class="g-text" id="leadViewValue" style="font-size:28px;">0</span> RUNS
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Logo -->
+            <div class="logo-box right" id="logoRight">
+                <div class="logo-inner bg-texture" id="logo2Box">
+                    <div class="crest-placeholder" id="bowlFlagLogo">GSC</div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- 🏏 Match Scorecard Overlay (Both Teams) -->
+    <div id="matchScorecardOverlay"></div>
+
+    <!-- 🆕 Present Details Overlay Container -->
+    <div id="presentDetailsOverlay"></div>
+
+    <!-- 🏆 Winner Card Overlay -->
+    <div id="winnerOverlay"></div>
+
+    <!-- Premium Charts Overlay - No Close Button -->
+    <div id="chartsOverlay" class="charts-overlay">
+        <div class="charts-container">
+            <div class="charts-header">
+                <div class="charts-title" id="chartsTitle">ADVANCED MATRIX</div>
+            </div>
+            <div class="charts-grid" id="chartsGrid">
+                <div id="winVizContainer"
+                    style="position: relative; width: 100%; min-height: 280px; display: flex; justify-content: center; align-items: center;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="score.js"></script>
+
+    <!-- [Bug 35] Fixed: Auto-scale script -->
+    <script>
+        function autoScaleBody() {
+            const scaleX = window.innerWidth / 1920;
+            const scaleY = window.innerHeight / 1080;
+            const scale = Math.min(scaleX, scaleY);
+
+            if (Math.abs(scale - 1) > 0.01) {
+                document.body.style.transform = `scale(${scale})`;
+                document.body.style.transformOrigin = 'top left';
+                // Center if screen is wider than 16:9
+                if (scaleX > scaleY) {
+                    const offsetX = (window.innerWidth - 1920 * scale) / 2;
+                    document.body.style.marginLeft = `${offsetX}px`;
+                } else {
+                    document.body.style.marginLeft = '0px';
+                }
+            } else {
+                document.body.style.transform = '';
+                document.body.style.marginLeft = '0px';
+            }
+        }
+
+        window.addEventListener('resize', autoScaleBody);
+        // Run after DOM + fonts loaded
+        document.addEventListener('DOMContentLoaded', autoScaleBody);
+        window.addEventListener('load', autoScaleBody);
+    </script>
+
+</body>
+
+</html>
